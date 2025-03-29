@@ -1,5 +1,6 @@
 # Packages
 node_modules
+.bun
 
 # Output files
 dist
@@ -9,3 +10,6 @@ dist
 .vscode
 .vs
 localFileStore
+
+# Bun's runtime logs and lock file
+bun.lockb
