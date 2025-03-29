@@ -36,6 +36,7 @@ This todo list tracks the tasks required to migrate the mydraft server project f
 ## Pending
 - [ ] Investigate potential performance improvements using Bun-specific optimizations.
 - [ ] Evaluate compatibility of `@google-cloud/storage` and `@hocuspocus/server` long-term with Bun runtime updates.
+- [ ] **[Superseded]:** Consider more advanced frameworks like ElysiaJS as alternatives to raw `Bun.serve` → *This has been implemented. See [.cursor/todos/convert-to-elysia.md](mdc:.cursor/todos/convert-to-elysia.md)*
 
 ## Completed
 - [x] Initial project analysis (2024-06-20).
@@ -53,6 +54,7 @@ This todo list tracks the tasks required to migrate the mydraft server project f
 - [x] **Streams:** Analyze `stream-helper.ts` and refactor to support both Bun and Node.js stream patterns (2024-06-20).
 - [x] **Build:** Update `package.json` scripts (`dev`, `build`, `start`). Use `bun --watch` for development. Use `bun build` for production builds (2024-06-20).
 - [x] **Dockerfile:** Update `Dockerfile` to use an `oven/bun` base image. Replace `npm` commands with `bun` commands (2024-06-20).
+- [x] **Framework Migration:** Migrated from raw `Bun.serve` implementation to ElysiaJS for improved code structure, better developer experience, and more features (2024-06-21).
 
 ## Memory
 *   (2024-06-20) Initial decision to migrate to Bun for potential performance gains and simplified tooling (native TS, .env, faster installs).
@@ -66,3 +68,4 @@ This todo list tracks the tasks required to migrate the mydraft server project f
 *   (2024-06-20) Encountered some typing challenges with Bun's WebSocket handling when integrating with Hocuspocus. Used a more generic approach with type assertions to make them compatible.
 *   (2024-06-20) Removed several Node.js specific dependencies that are now provided natively by Bun: dotenv (Bun loads .env files automatically), express/express-ws (using Bun.serve), and several development dependencies.
 *   (2024-06-20) Updated Dockerfile to use oven/bun base image and replaced npm commands with bun commands. Changed package installation from Alpine's apk to Debian's apt-get for the git dependency.
+*   (2024-06-21) Successfully migrated the codebase from using raw `Bun.serve` to using ElysiaJS. This provides better routing, middleware support, error handling, and WebSocket integration. The code is now more maintainable and follows framework conventions rather than custom routing logic.

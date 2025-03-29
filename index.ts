@@ -1,4 +1,3 @@
-// Bun automatically loads .env files, no need for dotenv import
 import { Database } from '@hocuspocus/extension-database';
 import { Logger } from '@hocuspocus/extension-logger';
 import { Server } from '@hocuspocus/server';
@@ -9,11 +8,8 @@ import fileStore from './fileStore';
 import { join } from 'path';
 import { IncomingMessage } from 'node:http';
 import { Socket } from 'node:net';
-
-// Define WebSocket type for Bun
-interface WebSocketData {
-    request: Request;
-}
+import { Elysia } from 'elysia';
+import { cors } from '@elysiajs/cors';
 
 const uid = new ShortUniqueId({ length: 20 });
 const serverPort = parseInt(process.env.SERVER_PORT || '8080');
@@ -88,22 +84,6 @@ const createIncomingMessageAdapter = (request: Request): IncomingMessage => {
     return incomingMessage;
 };
 
-// Helper function to set CORS headers
-const setCorsHeaders = (headers: Headers) => {
-    headers.set('Access-Control-Allow-Origin', '*');
-    headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    headers.set('Access-Control-Allow-Headers', 'Content-Type');
-};
-
-// Handle WebSocket connections
-const handleWebSocket = (ws: any) => {
-    // Hocuspocus expects a Node.js style socket and request
-    // We need to cast types to make it compatible
-    const data = ws.data as WebSocketData;
-    const nodeRequest = createIncomingMessageAdapter(data.request);
-    hocuspocusServer.handleConnection(ws, nodeRequest, {});
-};
-
 // Serve static files from the ui/dist directory
 const serveStaticFile = async (path: string) => {
     const filePath = join(import.meta.dir, 'ui/dist', path);
@@ -123,151 +103,164 @@ const serveStaticFile = async (path: string) => {
         }
         
         // If neither the requested file nor index.html exists, return a helpful message
-        const headers = new Headers();
-        setCorsHeaders(headers);
-        headers.set('Content-Type', 'text/plain');
         return new Response('UI files not found. The ui/dist directory may not exist.', { 
-            status: 404, 
-            headers 
+            status: 404
         });
     } catch (error) {
         console.error(`Error serving static file ${path}:`, error);
-        const headers = new Headers();
-        setCorsHeaders(headers);
-        return new Response('Error serving static files', { status: 500, headers });
+        return new Response('Error serving static files', { status: 500 });
     }
 };
 
-// Main Bun server
-Bun.serve({
-    port: serverPort,
-    async fetch(req, server) {
-        const url = new URL(req.url);
-        const method = req.method;
-        const headers = new Headers();
-        
-        // Set CORS headers for all responses
-        setCorsHeaders(headers);
-        
-        // Handle preflight OPTIONS requests
-        if (method === 'OPTIONS') {
-            return new Response(null, { headers });
-        }
-        
-        // Handle WebSocket upgrade for collaboration
-        if (url.pathname === '/api/collaboration' && server.upgrade(req, { 
-            // Store request in websocket data for handleWebSocket
-            data: { request: req } as WebSocketData
-        })) {
-            return;
-        }
-        
-        // API routes
-        if (url.pathname === '/api/health') {
-            headers.set('Content-Type', 'application/json');
-            return new Response(JSON.stringify({ status: 'Healthy' }), { 
-                headers 
-            });
-        }
-        
-        // GET document by read token
-        if (url.pathname.startsWith('/api/') && method === 'GET' && url.pathname.split('/').length === 3) {
-            const tokenRead = url.pathname.split('/')[2];
-            const file = storageBucket.file(tokenRead);
-            
-            const [exists] = await file.exists();
-            if (!exists) {
-                return new Response(null, { status: 404, headers });
-            }
-            
-            headers.set('Content-Type', 'application/json');
-            
-            // Read the entire file contents at once
-            try {
-                // Use file.download() which returns a buffer, and convert to string
-                const [buffer] = await file.download();
-                return new Response(buffer, { headers });
-            } catch (error) {
-                console.error('Error reading file:', error);
-                return new Response('Error reading file', { status: 500, headers });
-            }
-        }
-        
-        // POST create new document
-        if (url.pathname === '/api/' && method === 'POST') {
-            try {
-                const tokenWrite = uid.rnd();
-                const tokenRead = uid.rnd();
-                
-                const file = storageBucket.file(tokenRead);
-                
-                const body = await req.json();
-                
-                await file.save(JSON.stringify(body, undefined, 2), {
-                    metadata: {
-                        contentType: 'application/json',
-                        contentLength: undefined,
-                        'write-token': tokenWrite
-                    }
-                });
-                
-                headers.set('Content-Type', 'application/json');
-                return new Response(
-                    JSON.stringify({ readToken: tokenRead, writeToken: tokenWrite }), 
-                    { status: 201, headers }
-                );
-            } catch (error) {
-                console.error('Error creating document:', error);
-                return new Response('Error creating document', { status: 500, headers });
-            }
-        }
-        
-        // PUT update document
-        if (url.pathname.startsWith('/api/') && method === 'PUT' && url.pathname.split('/').length === 4) {
-            try {
-                const [, , tokenRead, tokenWrite] = url.pathname.split('/');
-                
-                const file = storageBucket.file(tokenRead);
-                
-                const [exists] = await file.exists();
-                if (!exists) {
-                    return new Response(null, { status: 404, headers });
-                }
-                
-                const [metadata] = await file.getMetadata();
-                
-                if (metadata['write-token'] !== tokenWrite) {
-                    return new Response(null, { status: 403, headers });
-                }
-                
-                const body = await req.json();
-                await file.save(JSON.stringify(body, undefined, 2));
-                
-                headers.set('Content-Type', 'application/json');
-                return new Response(
-                    JSON.stringify({ readToken: tokenRead, writeToken: tokenWrite }), 
-                    { status: 201, headers }
-                );
-            } catch (error) {
-                console.error('Error updating document:', error);
-                return new Response('Error updating document', { status: 500, headers });
-            }
-        }
-        
-        // Serve static files or fallback to index.html
-        if (!url.pathname.startsWith('/api/')) {
-            return serveStaticFile(url.pathname === '/' ? 'index.html' : url.pathname);
-        }
-        
-        // If no route matched, return 404
-        return new Response('Not Found', { status: 404, headers });
-    },
-    websocket: {
-        // The types for Bun.serve expect a specific signature
-        open: handleWebSocket,
-        message: () => {},
-        close: () => {}
-    },
+// Create Elysia app
+const app = new Elysia()
+    // CORS middleware
+    .use(cors({
+        origin: '*',
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
+        preflight: true
+    }))
+    // Basic error handler
+    .onError(({ code, error, set }) => {
+        console.error(`Error [${code}]:`, error);
+        set.status = 500;
+        // Check if error has a message property before trying to access it
+        return { 
+            error: 'Internal Server Error', 
+            details: error && typeof error === 'object' && 'message' in error 
+                ? error.message as string 
+                : 'Unknown error'
+        };
+    });
+
+// Health check endpoint
+app.get('/api/health', () => {
+    return { status: 'Healthy' };
 });
 
-console.log(`Listening on http://127.0.0.1:${serverPort}`);
+// Get document by read token
+app.get('/api/:tokenRead', async ({ params, set }) => {
+    const tokenRead = params.tokenRead;
+    const file = storageBucket.file(tokenRead);
+    
+    const [exists] = await file.exists();
+    if (!exists) {
+        set.status = 404;
+        return { error: 'Document not found' };
+    }
+    
+    try {
+        // Use file.download() which returns a buffer
+        const [buffer] = await file.download();
+        
+        // Set content type
+        set.headers['Content-Type'] = 'application/json';
+        
+        // Return the buffer directly
+        return buffer;
+    } catch (error) {
+        console.error('Error reading file:', error);
+        set.status = 500;
+        return { error: 'Error reading file' };
+    }
+});
+
+// Create new document
+app.post('/api/', async ({ body, set }) => {
+    try {
+        const tokenWrite = uid.rnd();
+        const tokenRead = uid.rnd();
+        
+        const file = storageBucket.file(tokenRead);
+        
+        await file.save(JSON.stringify(body, undefined, 2), {
+            metadata: {
+                contentType: 'application/json',
+                contentLength: undefined,
+                'write-token': tokenWrite
+            }
+        });
+        
+        set.status = 201;
+        set.headers['Content-Type'] = 'application/json';
+        return { readToken: tokenRead, writeToken: tokenWrite };
+    } catch (error) {
+        console.error('Error creating document:', error);
+        set.status = 500;
+        return { error: 'Error creating document' };
+    }
+});
+
+// Update document
+app.put('/api/:tokenRead/:tokenWrite', async ({ params, body, set }) => {
+    try {
+        const { tokenRead, tokenWrite } = params;
+        
+        const file = storageBucket.file(tokenRead);
+        
+        const [exists] = await file.exists();
+        if (!exists) {
+            set.status = 404;
+            return { error: 'Document not found' };
+        }
+        
+        const [metadata] = await file.getMetadata();
+        
+        if (metadata['write-token'] !== tokenWrite) {
+            set.status = 403;
+            return { error: 'Invalid write token' };
+        }
+        
+        await file.save(JSON.stringify(body, undefined, 2));
+        
+        return { readToken: tokenRead, writeToken: tokenWrite };
+    } catch (error) {
+        console.error('Error updating document:', error);
+        set.status = 500;
+        return { error: 'Error updating document' };
+    }
+});
+
+// WebSocket handler for collaboration
+app.ws('/api/collaboration', {
+    open(ws) {
+        try {
+            // Instead of accessing ws.url directly, create a URL from the connection info
+            // Elysia's WebSocket doesn't expose the full URL directly like Bun's native WebSocket
+            // We can use a dummy URL since Hocuspocus mainly needs the headers and request details
+            const request = new Request('http://localhost/api/collaboration');
+            
+            // Use the adapter to convert to IncomingMessage
+            const nodeRequest = createIncomingMessageAdapter(request);
+            
+            // Pass to Hocuspocus
+            hocuspocusServer.handleConnection(ws as any, nodeRequest, {});
+        } catch (error) {
+            console.error('Error in WebSocket open handler:', error);
+            ws.close();
+        }
+    },
+    message() {
+        // Hocuspocus handles this internally after connection
+    },
+    close() {
+        // Hocuspocus handles this internally
+    }
+});
+
+// Serve static files for any non-API route
+app.all('/*', async ({ path, set }) => {
+    if (path.startsWith('/api/')) {
+        set.status = 404;
+        return { error: 'Not Found' };
+    }
+    
+    return await serveStaticFile(path === '/' ? 'index.html' : path);
+});
+
+// Start the server
+app.listen(serverPort);
+
+console.log(`🦊 Elysia server running on http://localhost:${serverPort}`);

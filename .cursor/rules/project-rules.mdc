@@ -1,3 +1,8 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
 ## Project Context Management
 - ALWAYS read and consider [context.md](mdc:.cursor/context.md) before making any changes
 - If the user references any .cursor/todos/*.md ALWAYS read and consider them before making changes
@@ -86,21 +91,3 @@ Detailed description of this todo category's purpose, including:
 - [x] Resolved items
 - [x] Implemented features
 ```
-## Project Context Management
-- ALWAYS read and consider [context.md](mdc:.cursor/context.md) before making any changes
-- If the user references any .cursor/todos/*.md ALWAYS read and consider them before making changes
-- AUTOMATICALLY update [context.md](mdc:.cursor/context.md) when:
-  - New dependencies are added or removed
-  - Project structure changes
-  - Features are implemented or modified
-  - Architecture decisions are made
-  - Development status changes
-- AUTOMATICALLY update relevant todo files in .cursor/todos/ when:
-  - Tasks are completed or change status
-  - New tasks are identified
-  - Implementation status changes
-  - Technical debt is discovered
-- MAINTAIN separate todo files for different tasks:
-  - .cursor/todos/example.md - Example tasks
-  - .cursor/todos/new-feature.md - New feature tasks
-

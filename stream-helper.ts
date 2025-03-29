@@ -1,6 +1,6 @@
-export module utils {
+export const utils = {
     // Write data to a stream (works with both Bun WritableStream and Node Writable)
-    export async function writeAsync(stream: any, chunk: any) {
+    writeAsync: async (stream: any, chunk: any) => {
         // If it's a Bun WritableStream with a write method
         if (typeof stream.write === 'function') {
             return new Promise((resolve, reject) => {
@@ -20,10 +20,10 @@ export module utils {
             writer.releaseLock();
             return true;
         }
-    }
+    },
 
     // End a stream (works with both Bun WritableStream and Node Writable)
-    export async function endAsync(stream: any) {
+    endAsync: async (stream: any) => {
         // If it's a Node-style stream with an end method
         if (typeof stream.end === 'function') {
             return new Promise((resolve) => {

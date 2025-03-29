@@ -11,11 +11,13 @@
   "author": "Sebastian",
   "license": "ISC",
   "dependencies": {
+    "@elysiajs/cors": "^1.2.0",
     "@google-cloud/storage": "^7.3.1",
     "@hocuspocus/extension-database": "^2.7.1",
     "@hocuspocus/extension-logger": "^2.7.1",
     "@hocuspocus/provider": "^2.7.1",
     "@hocuspocus/server": "^2.7.1",
+    "elysia": "^1.2.25",
     "short-unique-id": "^5.0.3"
   },
   "devDependencies": {
